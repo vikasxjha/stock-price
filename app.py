@@ -1,72 +1,136 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, jsonify
+
 import yfinance as yf
 from tabulate import tabulate
+import requests
+import threading
+import time
 
 app = Flask(__name__)
 
 # Installation instructions:
 # pip install yfinance tabulate flask
 
-def fetch_prices(symbols):
-    results = []
-    known_suffixes = ['.NS', '.BO', '.AX', '.L', '.TO', '.V', '.SI', '.HK', '.KS', '.KQ', '.TW', '.SS', '.SZ', '.F', '.DE', '.PA', '.MI', '.ST', '.HE', '.CO', '.OL', '.MC', '.SW', '.PR', '.IR', '.TA', '.VI', '.SA', '.ME', '.IS', '.BK', '.TWO', '.T', '.NZ', '.SG', '.JK', '.B']
-    for symbol in symbols:
-        original_symbol = symbol.strip().upper()
-        # Use as-is if symbol has a known suffix
-        if any(original_symbol.endswith(suf) for suf in known_suffixes):
-            symbol_to_fetch = original_symbol
-            try:
-                ticker = yf.Ticker(symbol_to_fetch)
-                data = ticker.history(period="1d")
-                if data.empty:
-                    raise ValueError("No data found")
-                price = data['Close'].iloc[-1]
-                currency = ticker.info.get('currency', 'N/A')
-                results.append({'Symbol': original_symbol, 'Price': price, 'Currency': currency})
-                continue
-            except Exception:
-                results.append({'Symbol': original_symbol, 'Price': 'N/A', 'Currency': 'N/A'})
-                continue
-        # Try as US stock first
-        try:
-            ticker = yf.Ticker(original_symbol)
-            data = ticker.history(period="1d")
-            if not data.empty:
-                price = data['Close'].iloc[-1]
-                currency = ticker.info.get('currency', 'N/A')
-                results.append({'Symbol': original_symbol, 'Price': price, 'Currency': currency})
-                continue
-        except Exception:
-            pass
-        # Fallback to Indian stock (.NS)
-        try:
-            symbol_ns = original_symbol + '.NS'
-            ticker = yf.Ticker(symbol_ns)
-            data = ticker.history(period="1d")
-            if not data.empty:
-                price = data['Close'].iloc[-1]
-                currency = ticker.info.get('currency', 'N/A')
-                results.append({'Symbol': original_symbol, 'Price': price, 'Currency': currency})
-                continue
-        except Exception:
-            pass
-        # If all fail
-        results.append({'Symbol': original_symbol, 'Price': 'N/A', 'Currency': 'N/A'})
-    return results
 
-@app.route('/', methods=['GET', 'POST'])
+# --- API Endpoints ---
+
+@app.route('/')
 def index():
-    table_html = None
-    error = None
-    if request.method == 'POST':
-        symbols = request.form.get('symbols', '')
-        if not symbols.strip():
-            error = "Please enter at least one stock symbol."
-        else:
-            symbol_list = [s.strip() for s in symbols.split(',') if s.strip()]
-            results = fetch_prices(symbol_list)
-            table_html = tabulate(results, headers="keys", tablefmt="html", floatfmt=".2f")
-    return render_template('index.html', table_html=table_html, error=error)
+    return render_template('index.html')
+
+@app.route('/api/price')
+def api_price():
+    symbol = request.args.get('symbol', 'AAPL').upper()
+    try:
+        ticker = yf.Ticker(symbol)
+        data = ticker.history(period="1d")
+        price = float(data['Close'].iloc[-1]) if not data.empty else None
+        prev = float(data['Close'].iloc[-2]) if len(data) > 1 else price
+        change = round(price - prev, 2) if price and prev else 0
+        percent = round((change / prev) * 100, 2) if prev else 0
+        return jsonify({
+            'price': price,
+            'change': change,
+            'percent_change': percent
+        })
+    except Exception:
+        return jsonify({'price': None, 'change': 0, 'percent_change': 0})
+
+@app.route('/api/history')
+def api_history():
+    symbol = request.args.get('symbol', 'AAPL').upper()
+    range_ = request.args.get('range', '1mo')
+    try:
+        ticker = yf.Ticker(symbol)
+        data = ticker.history(period=range_)
+        dates = [d.strftime('%Y-%m-%d') for d in data.index]
+        prices = [round(float(p), 2) for p in data['Close']]
+        return jsonify({'dates': dates, 'prices': prices})
+    except Exception:
+        return jsonify({'dates': [], 'prices': []})
+
+@app.route('/api/info')
+def api_info():
+    symbol = request.args.get('symbol', 'AAPL').upper()
+    try:
+        ticker = yf.Ticker(symbol)
+        info = ticker.info
+        return jsonify({
+            'symbol': symbol,
+            'name': info.get('shortName', ''),
+            'sector': info.get('sector', ''),
+            'marketCap': info.get('marketCap', ''),
+            'currency': info.get('currency', '')
+        })
+    except Exception:
+        return jsonify({'symbol': symbol, 'name': '', 'sector': '', 'marketCap': '', 'currency': ''})
+
+@app.route('/api/search')
+def api_search():
+    q = request.args.get('q', '').upper()
+    # Simple static list for demo; replace with a real autocomplete source or cache
+    static = [
+        {'symbol': 'AAPL', 'name': 'Apple Inc.'},
+        {'symbol': 'MSFT', 'name': 'Microsoft Corp.'},
+        {'symbol': 'TSLA', 'name': 'Tesla Inc.'},
+        {'symbol': 'GOOGL', 'name': 'Alphabet Inc.'},
+        {'symbol': 'AMZN', 'name': 'Amazon.com Inc.'},
+        {'symbol': 'INFY.NS', 'name': 'Infosys Ltd.'},
+        {'symbol': 'TCS.NS', 'name': 'Tata Consultancy Services'},
+        {'symbol': 'RELIANCE.NS', 'name': 'Reliance Industries'},
+        {'symbol': 'HDFCBANK.NS', 'name': 'HDFC Bank'},
+        {'symbol': 'ITC.NS', 'name': 'ITC Ltd.'},
+    ]
+    results = [s for s in static if q in s['symbol'] or q in s['name'].upper()]
+    return jsonify(results[:8])
+
+@app.route('/api/gainers-losers')
+def api_gainers_losers():
+    type_ = request.args.get('type', 'gainers')
+    # For demo, use static data; in production, use a real API or scrape Yahoo Finance
+    demo = {
+        'gainers': [
+            {'symbol': 'TSLA', 'change': 12.5, 'percent_change': 4.2},
+            {'symbol': 'AAPL', 'change': 5.1, 'percent_change': 2.1},
+            {'symbol': 'TCS.NS', 'change': 40, 'percent_change': 3.5},
+        ],
+        'losers': [
+            {'symbol': 'NFLX', 'change': -8.2, 'percent_change': -3.1},
+            {'symbol': 'META', 'change': -4.7, 'percent_change': -2.2},
+            {'symbol': 'ITC.NS', 'change': -10, 'percent_change': -2.8},
+        ]
+    }
+    return jsonify(demo.get(type_, []))
+
+@app.route('/api/news')
+def api_news():
+    symbol = request.args.get('symbol', 'AAPL').upper()
+    # For demo, use static news; in production, use NewsAPI or Yahoo Finance News
+    demo = [
+        {'title': f'{symbol} hits new high', 'url': 'https://finance.yahoo.com', 'source': 'Yahoo Finance', 'time': '1h ago'},
+        {'title': f'Analyst upgrades {symbol}', 'url': 'https://finance.yahoo.com', 'source': 'Yahoo Finance', 'time': '2h ago'},
+        {'title': f'{symbol} quarterly results beat estimates', 'url': 'https://finance.yahoo.com', 'source': 'Yahoo Finance', 'time': '3h ago'},
+    ]
+    return jsonify(demo)
+
+@app.route('/api/convert')
+def api_convert():
+    if 'currencies' in request.args:
+        # Return a static list of major currencies
+        return jsonify(['USD', 'INR', 'EUR', 'GBP', 'JPY', 'CNY', 'CAD', 'AUD'])
+    from_cur = request.args.get('from', 'USD')
+    to_cur = request.args.get('to', 'INR')
+    amount = float(request.args.get('amount', 1))
+    try:
+        # Use exchangerate.host for free conversion
+        url = f'https://api.exchangerate.host/convert?from={from_cur}&to={to_cur}&amount={amount}'
+        resp = requests.get(url, timeout=5)
+        data = resp.json()
+        return jsonify({'result': round(data.get('result', 0), 2)})
+    except Exception:
+        return jsonify({'result': None})
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)
