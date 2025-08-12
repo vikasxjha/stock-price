@@ -1,92 +1,325 @@
 <!DOCTYPE html>
-<html lang="en">
+<html
+  lang="en"
+  class="bg-gradient-to-br from-blue-100 to-purple-200 dark:from-gray-900 dark:to-gray-800"
+>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Stock Price Fetcher</title>
+    <title>Stock Dashboard</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Heroicons for icons -->
+    <script src="https://unpkg.com/feather-icons"></script>
+    <link rel="icon" href="https://fav.farm/📈" />
     <style>
       body {
-        font-family: Arial, sans-serif;
-        background: #f4f6f8;
-        margin: 0;
-        padding: 0;
+        background: #f9fafb;
       }
-      .container {
-        max-width: 600px;
-        margin: 40px auto;
-        background: #fff;
-        border-radius: 8px;
-        box-shadow: 0 2px 8px #0001;
-        padding: 32px;
+      .header-gradient {
+        background: linear-gradient(135deg, #ffffff, #f3f4f6);
       }
-      h1 {
-        text-align: center;
-        color: #333;
+      .glass {
+        background: rgba(255, 255, 255, 0.65);
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border-radius: 1.5rem;
+        border: 1px solid #e5e7eb;
       }
-      form {
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
+      .transition-all {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       }
-      input[type="text"] {
-        padding: 10px;
-        font-size: 1rem;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-      }
-      button {
-        padding: 10px;
-        font-size: 1rem;
-        background: #007bff;
+      .primary-btn {
+        background: #2563eb;
         color: #fff;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
       }
-      button:hover {
-        background: #0056b3;
+      .primary-btn:hover {
+        background: #2563eb;
+        filter: brightness(1.1);
       }
-      .error {
-        color: #c00;
-        text-align: center;
-        margin-bottom: 16px;
+      .emerald {
+        background: #10b981;
+        color: #fff;
       }
-      .table-container {
-        margin-top: 24px;
+      .emerald:hover {
+        filter: brightness(1.1);
       }
-      table {
-        width: 100%;
-        border-collapse: collapse;
+      .amber {
+        background: #f59e0b;
+        color: #fff;
       }
-      th,
-      td {
-        padding: 10px;
-        border: 1px solid #ddd;
-        text-align: center;
+      .amber:hover {
+        filter: brightness(1.1);
       }
-      th {
-        background: #f0f0f0;
+      .trend-red {
+        color: #ef4444;
+      }
+      .trend-green {
+        color: #22c55e;
+      }
+      .card-text {
+        color: #111827;
+      }
+      .card-subtext {
+        color: #4b5563;
+      }
+      /* --- DARK MODE --- */
+      html.dark body {
+        background: #111827;
+      }
+      html.dark .header-gradient {
+        background: linear-gradient(135deg, #1f2937, #0f172a);
+      }
+      html.dark .glass {
+        background: rgba(31, 41, 55, 0.75);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.25);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid #374151;
+      }
+      html.dark .card-text {
+        color: #f9fafb;
+      }
+      html.dark .card-subtext {
+        color: #d1d5db;
+      }
+      html.dark .primary-btn {
+        background: #3b82f6;
+        color: #fff;
+      }
+      html.dark .primary-btn:hover {
+        background: #3b82f6;
+        filter: brightness(1.15);
+      }
+      html.dark .emerald {
+        background: #34d399;
+        color: #fff;
+      }
+      html.dark .emerald:hover {
+        filter: brightness(1.15);
+      }
+      html.dark .amber {
+        background: #fbbf24;
+        color: #fff;
+      }
+      html.dark .amber:hover {
+        filter: brightness(1.15);
+      }
+      html.dark .trend-red {
+        color: #ef4444;
+      }
+      html.dark .trend-green {
+        color: #22c55e;
+      }
+      /* Fix for Tailwind arbitrary value classes in dark mode */
+      html.dark [class*="border-[#E5E7EB]"],
+      html.dark [class*="border border-[#E5E7EB]"],
+      html.dark .glass {
+        border-color: #374151 !important;
+      }
+      html.dark [class*="bg-blue-100"],
+      html.dark [class*="hover:bg-blue-100"]:hover {
+        background-color: #1e293b !important;
+        color: #60a5fa !important;
+        filter: brightness(1.15);
+      }
+      html.dark [class*="bg-white"],
+      html.dark [class*="bg-white "] {
+        background-color: #1f2937 !important;
+      }
+      html.dark [class*="text-[#2563EB]"],
+      html.dark [class*="text-[#2563eb]"] {
+        color: #60a5fa !important;
+      }
+      html.dark [class*="bg-blue-200"] {
+        background-color: #334155 !important;
       }
     </style>
   </head>
-  <body>
-    <div class="container">
-      <h1>Stock Price Fetcher</h1>
-      <form method="post">
-        <input
-          type="text"
-          name="symbols"
-          placeholder="Enter symbols (e.g. AAPL, TSLA, MSFT)"
-          required
-        />
-        <button type="submit">Fetch Prices</button>
-      </form>
-      {% if error %}
-      <div class="error">{{ error }}</div>
-      {% endif %}
-      <div class="table-container">
-        {% if table_html %} {{ table_html|safe }} {% endif %}
+  <body
+    class="min-h-screen flex flex-col transition-all"
+    style="background: #f9fafb"
+  >
+    <div class="container mx-auto px-4 py-6">
+      <!-- Header -->
+      <div
+        class="flex flex-col md:flex-row justify-between items-center mb-6 header-gradient rounded-2xl p-6 shadow-sm border border-[#E5E7EB]"
+      >
+        <h1 class="text-3xl font-extrabold card-text mb-2 md:mb-0">
+          Stock Dashboard
+        </h1>
+        <div class="flex items-center gap-4">
+          <button
+            id="theme-toggle"
+            class="p-2 rounded-full glass hover:bg-blue-100 transition-all"
+            title="Toggle light/dark mode"
+          >
+            <i data-feather="moon"></i>
+          </button>
+          <div class="relative">
+            <input
+              id="search-bar"
+              type="text"
+              placeholder="Search ticker..."
+              autocomplete="off"
+              class="glass px-4 py-2 rounded-lg w-48 focus:w-64 transition-all outline-none border border-[#E5E7EB] card-text"
+            />
+            <ul
+              id="autocomplete-list"
+              class="absolute left-0 right-0 bg-white glass mt-1 rounded-lg shadow-lg z-10 hidden border border-[#E5E7EB]"
+            ></ul>
+          </div>
+        </div>
+      </div>
+      <!-- Main Content -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Stock Card -->
+        <div class="col-span-2 glass p-6 flex flex-col gap-4">
+          <div
+            class="flex flex-col md:flex-row md:items-center md:justify-between gap-2"
+          >
+            <div>
+              <h2 id="company-name" class="text-2xl font-bold card-text"></h2>
+              <p id="company-sector" class="text-sm card-subtext"></p>
+            </div>
+            <div class="flex items-center gap-4">
+              <span
+                id="stock-ticker"
+                class="text-lg font-mono bg-blue-100 text-[#2563EB] px-3 py-1 rounded-lg border border-[#E5E7EB]"
+              ></span>
+              <span
+                id="stock-price"
+                class="text-3xl font-bold card-text"
+              ></span>
+              <span id="stock-currency" class="text-lg card-subtext"></span>
+              <span id="stock-change" class="text-lg font-semibold"></span>
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-2 mt-2">
+            <button
+              class="filter-btn px-3 py-1 rounded-lg bg-blue-100 hover:bg-blue-200 text-[#2563EB] border border-[#E5E7EB] transition-all"
+              data-range="1d"
+            >
+              1D
+            </button>
+            <button
+              class="filter-btn px-3 py-1 rounded-lg bg-blue-100 hover:bg-blue-200 text-[#2563EB] border border-[#E5E7EB] transition-all"
+              data-range="5d"
+            >
+              5D
+            </button>
+            <button
+              class="filter-btn px-3 py-1 rounded-lg bg-blue-100 hover:bg-blue-200 text-[#2563EB] border border-[#E5E7EB] transition-all"
+              data-range="1mo"
+            >
+              1M
+            </button>
+            <button
+              class="filter-btn px-3 py-1 rounded-lg bg-blue-100 hover:bg-blue-200 text-[#2563EB] border border-[#E5E7EB] transition-all"
+              data-range="6mo"
+            >
+              6M
+            </button>
+            <button
+              class="filter-btn px-3 py-1 rounded-lg bg-blue-100 hover:bg-blue-200 text-[#2563EB] border border-[#E5E7EB] transition-all"
+              data-range="1y"
+            >
+              1Y
+            </button>
+            <button
+              class="filter-btn px-3 py-1 rounded-lg bg-blue-100 hover:bg-blue-200 text-[#2563EB] border border-[#E5E7EB] transition-all"
+              data-range="ytd"
+            >
+              YTD
+            </button>
+            <button
+              class="filter-btn px-3 py-1 rounded-lg bg-blue-100 hover:bg-blue-200 text-[#2563EB] border border-[#E5E7EB] transition-all"
+              data-range="max"
+            >
+              MAX
+            </button>
+          </div>
+          <canvas id="stock-chart" class="w-full h-64"></canvas>
+        </div>
+        <!-- Sidebar: Watchlist, Movers, News -->
+        <div class="flex flex-col gap-6">
+          <!-- Watchlist -->
+          <div class="glass p-4">
+            <div class="flex justify-between items-center mb-2">
+              <h3 class="font-bold text-lg">Watchlist</h3>
+              <button
+                id="add-watchlist"
+                class="p-1 rounded hover:bg-blue-100 transition-all"
+                title="Add to Watchlist"
+              >
+                <i data-feather="star"></i>
+              </button>
+            </div>
+            <ul id="watchlist" class="space-y-1"></ul>
+          </div>
+          <!-- Top Gainers/Losers -->
+          <div class="glass p-4">
+            <h3 class="font-bold text-lg mb-2">Top Movers</h3>
+            <div class="flex gap-2">
+              <button
+                id="gainers-btn"
+                class="px-2 py-1 rounded bg-[#22C55E] hover:bg-[#10B981] text-white transition-all"
+              >
+                Gainers
+              </button>
+              <button
+                id="losers-btn"
+                class="px-2 py-1 rounded bg-[#EF4444] hover:bg-[#F59E0B] text-white transition-all"
+              >
+                Losers
+              </button>
+            </div>
+            <ul id="movers-list" class="mt-2 space-y-1"></ul>
+          </div>
+          <!-- News -->
+          <div class="glass p-4">
+            <h3 class="font-bold text-lg mb-2">News</h3>
+            <ul id="news-list" class="space-y-2"></ul>
+          </div>
+          <!-- Currency Conversion -->
+          <div class="glass p-4">
+            <h3 class="font-bold text-lg mb-2">Currency Converter</h3>
+            <div class="flex gap-2 items-center">
+              <input
+                id="currency-amount"
+                type="number"
+                class="px-2 py-1 rounded bg-white w-20 border border-[#E5E7EB]"
+                value="1"
+                min="0"
+              />
+              <select
+                id="currency-from"
+                class="px-2 py-1 rounded bg-white border border-[#E5E7EB]"
+              ></select>
+              <span>→</span>
+              <select
+                id="currency-to"
+                class="px-2 py-1 rounded bg-white border border-[#E5E7EB]"
+              ></select>
+              <button
+                id="convert-btn"
+                class="px-2 py-1 rounded primary-btn hover:bg-[#3B82F6] transition-all"
+              >
+                Convert
+              </button>
+            </div>
+            <div id="currency-result" class="mt-2 text-lg font-semibold"></div>
+          </div>
+        </div>
       </div>
     </div>
+    <!-- JS: UI, Fetch, Chart, Watchlist, etc. -->
+    <script src="/static/app.js"></script>
+    <script>
+      feather.replace();
+    </script>
   </body>
 </html>
